@@ -1,0 +1,9 @@
+{
+  "labels": { "ships": "Projects launched", "containers": "Sign-ups", "visitors": "Active users" },
+  "per_container": 250,
+  "months": {
+    "2024-01": { "ships": 2, "containers": 800, "visitors": 1200 },
+    "2024-02": { "ships": 4, "containers": 1500, "visitors": 2100 },
+    "2024-03": { "ships": 7, "containers": 2600, "visitors": 3400 }
+  }
+}

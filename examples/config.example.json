@@ -1,0 +1,10 @@
+{
+  "name": "Acme",
+  "package_roots": ["packages", "apps"],
+  "exclude": ["(^|/)node_modules/", "\\.lock$", "lock\\.json$", "\\.snap$", "(^|/)generated/"],
+  "releases": { "tags": false, "merge_pattern": "Merge pull request .* from .*/release/" },
+  "hotfix_pattern": "\\bhotfix",
+  "districts": { "api": "Financial District", "web": "Old Town", "shared": "Central Station" },
+  "rows": { "infra": "south" },
+  "zones": [{ "pattern": "(^|/)emails/", "zone": "shop" }]
+}

@@ -1,0 +1,864 @@
+<meta charset="utf-8">
+<title>Git City</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: a full-bleed living city with a transit-map style HUD, then the zoning code and chronicle below */
+:root {
+  --paper: #f2f1ec; --sheet: #fbfaf7; --ink: #191b20; --muted: #5f636d; --rule: #dad8d0; --accent: #d64545;
+  --hud: rgba(12, 15, 24, 0.78); --hud-ink: #eef1f8; --hud-muted: #a5adbf; --hud-rule: rgba(255, 255, 255, 0.12);
+  --display: "Bricolage Grotesque", "Avenir Next", system-ui, sans-serif;
+  --body: "IBM Plex Sans", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) { --paper: #111318; --sheet: #181b21; --ink: #e8e9ed; --muted: #9ba1ad; --rule: #2b2f38; --accent: #ef6a6a; color-scheme: dark; }
+}
+:root[data-theme="dark"] { --paper: #111318; --sheet: #181b21; --ink: #e8e9ed; --muted: #9ba1ad; --rule: #2b2f38; --accent: #ef6a6a; color-scheme: dark; }
+body { background: var(--paper); color: var(--ink); font: 15px/1.55 var(--body); }
+.wrap { max-width: 1180px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+h1, h2, h3 { font-family: var(--display); margin: 0; text-wrap: balance; }
+h1 { font-size: clamp(2rem, 4.4vw, 3.2rem); font-weight: 800; letter-spacing: -0.02em; line-height: 1.02; }
+h2 { font-size: clamp(1.4rem, 2.6vw, 1.9rem); font-weight: 800; }
+h3 { font: 500 0.76rem var(--mono); text-transform: uppercase; letter-spacing: 0.09em; color: var(--muted); }
+p { margin: 0; max-width: 70ch; }
+.intro { padding-block: 36px 20px; display: grid; gap: 12px; }
+.lede { color: var(--muted); font-size: 1.04rem; }
+.stage { position: relative; background: #0b1020; overflow: hidden; border-block: 1px solid #1d2335; }
+.stage canvas { display: block; width: 100%; height: min(78vh, 760px); min-height: 480px; touch-action: pan-y; cursor: grab; }
+.hud { position: absolute; color: var(--hud-ink); background: var(--hud); backdrop-filter: blur(8px); border: 1px solid var(--hud-rule); border-radius: 10px; font-size: 0.82rem; }
+.hud-date { top: 14px; left: max(14px, env(safe-area-inset-left, 0px)); padding: 10px 14px; display: grid; gap: 8px; min-width: 210px; }
+.hud-date .month { font: 800 1.7rem/1 var(--display); letter-spacing: -0.01em; }
+.hud-stats { display: grid; grid-template-columns: auto auto; gap: 2px 14px; font-variant-numeric: tabular-nums; }
+.hud-stats dt { color: var(--hud-muted); }
+.hud-stats dd { margin: 0; text-align: right; font-family: var(--mono); }
+.hud-controls { top: 14px; right: max(14px, env(safe-area-inset-right, 0px)); padding: 6px; display: flex; flex-wrap: wrap; gap: 4px; max-width: 340px; justify-content: flex-end; }
+.hud button { font: 500 0.78rem var(--mono); color: var(--hud-ink); background: transparent; border: 1px solid var(--hud-rule); border-radius: 999px; padding: 5px 11px; cursor: pointer; }
+.hud button[aria-pressed="true"] { background: var(--hud-ink); color: #0b1020; }
+.hud button:focus-visible, .timeline input:focus-visible { outline: 2px solid #f0b440; outline-offset: 2px; }
+.ticker { left: 50%; transform: translateX(-50%); bottom: 64px; padding: 9px 14px; display: flex; gap: 10px; align-items: baseline; max-width: min(760px, calc(100% - 32px)); }
+.ticker b { font: 500 0.72rem var(--mono); color: #f0b440; letter-spacing: 0.08em; white-space: nowrap; }
+.ticker span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.timeline { position: absolute; left: 0; right: 0; bottom: 0; padding: 10px max(14px, env(safe-area-inset-right, 0px)) 12px max(14px, env(safe-area-inset-left, 0px)); background: linear-gradient(transparent, rgba(6, 9, 18, 0.85)); display: flex; align-items: center; gap: 12px; }
+.timeline button { font: 500 0.82rem var(--mono); background: #eef1f8; color: #0b1020; border: 0; border-radius: 999px; padding: 6px 14px; cursor: pointer; }
+.timeline input { flex: 1; min-width: 0; accent-color: #f0b440; }
+.tip { position: absolute; pointer-events: none; padding: 8px 11px; max-width: 340px; display: grid; gap: 2px; }
+.tip .path { font: 0.74rem var(--mono); color: var(--hud-muted); word-break: break-all; }
+.tip .kind { font-weight: 600; }
+.callout { position: absolute; pointer-events: none; transform: translate(-50%, -100%); padding: 6px 10px; font-size: 0.8rem; max-width: 280px; border-left: 3px solid #f0b440; }
+.callout small { display: block; font: 0.68rem var(--mono); color: var(--hud-muted); }
+.section { padding-block: 40px; display: grid; gap: 18px; }
+.zones { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 10px; }
+.zone { display: grid; grid-template-columns: 34px 1fr; gap: 4px 12px; padding: 12px; background: var(--sheet); border: 1px solid var(--rule); border-radius: 10px; align-items: start; }
+.zone i { width: 34px; height: 34px; border-radius: 6px; grid-row: span 2; box-shadow: inset 0 -8px 0 rgba(0, 0, 0, 0.18); }
+.zone b { font-family: var(--display); font-size: 1.02rem; }
+.zone span { font-size: 0.86rem; color: var(--muted); }
+.zone code, li code, p code { font-family: var(--mono); font-size: 0.82em; }
+.systems { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 0 32px; }
+.systems div { display: grid; grid-template-columns: 9.5rem 1fr; gap: 10px; padding-block: 8px; border-top: 1px solid var(--rule); font-size: 0.9rem; }
+.systems dt { font-weight: 600; }
+.systems dd { margin: 0; color: var(--muted); }
+.chronicle { list-style: none; margin: 0; padding: 0; columns: 2 340px; column-gap: 32px; }
+.chronicle li { break-inside: avoid; display: grid; grid-template-columns: 7.5ch 1fr; gap: 10px; padding-block: 7px; border-top: 1px solid var(--rule); font-size: 0.9rem; }
+.chronicle button { all: unset; cursor: pointer; }
+.chronicle button:hover { color: var(--accent); }
+.chronicle button:focus-visible { outline: 2px solid var(--accent); }
+.chronicle time { font: 0.76rem/1.8 var(--mono); color: var(--muted); }
+.chronicle li.future { opacity: 0.35; }
+.note { font-size: 0.88rem; color: var(--muted); border-left: 3px solid var(--accent); padding: 4px 0 4px 12px; }
+footer { padding-block: 24px 64px; color: var(--muted); font-size: 0.9rem; }
+@media (max-width: 640px) {
+  .hud-controls { top: auto; bottom: 108px; right: 8px; max-width: 220px; }
+  .hud-date { min-width: 0; }
+  .hud-stats { display: none; }
+  .ticker { bottom: 58px; }
+}
+</style>
+
+<div class="wrap intro">
+  <h3 id="city-kicker">A git repository, as a city</h3>
+  <h1 id="city-name">Git City</h1>
+  <p class="lede">Every file is a building and every package is a district. The city grows and shrinks month by month from the real git history. Press Play, drag to orbit (shift-drag to pan), scroll to zoom, and hover any building to see its file.</p>
+</div>
+
+<div class="stage" id="stage">
+  <canvas id="city" aria-label="Three-dimensional city where each building is a file in the repository"></canvas>
+  <div class="hud hud-date">
+    <div class="month" id="hud-month">Jun 2021</div>
+    <dl class="hud-stats" id="hud-stats"></dl>
+  </div>
+  <div class="hud hud-controls" role="group" aria-label="View controls">
+    <button type="button" data-light="day" aria-pressed="false">Day</button>
+    <button type="button" data-light="dusk" aria-pressed="true">Dusk</button>
+    <button type="button" data-light="night" aria-pressed="false">Night</button>
+    <button type="button" data-cam="overview">Overview</button>
+    <button type="button" data-cam="downtown">Downtown</button>
+    <button type="button" data-cam="port">Port</button>
+    <button type="button" id="labels-btn" aria-pressed="true">Labels</button>
+  </div>
+  <div class="hud ticker" id="ticker"><b>CITY NEWS</b><span id="ticker-text">Ground is broken on the first street.</span></div>
+  <div id="callouts"></div>
+  <div class="hud tip" id="tip" hidden></div>
+  <div class="timeline">
+    <button type="button" id="play">Play</button>
+    <input type="range" id="month" min="0" step="0.01" value="0" aria-label="Month">
+  </div>
+</div>
+
+<div class="wrap">
+  <section class="section">
+    <h2>Zoning code</h2>
+    <p class="lede">A file's path and type decide what kind of building it becomes. The size of its plot comes from the largest the file ever grew, so plots stay put while the buildings on them rise and fall. Height comes from the file's current line count.</p>
+    <div class="zones" id="zones"></div>
+  </section>
+
+  <section class="section">
+    <h2>How the city runs</h2>
+    <dl class="systems">
+      <div><dt>Population</dt><dd>Lines of code. A district's population is its package's size.</dd></div>
+      <div><dt>Districts and streets</dt><dd>Packages are districts, top-level folders are blocks and sub-folders are streets. Wider roads separate higher levels of the folder tree.</dd></div>
+      <div><dt>Metro</dt><dd>Packages that others import are interchanges, each with its own coloured line. A line runs to every package that imports from it, with more trains where there are more imports.</dd></div>
+      <div><dt>Traffic</dt><dd>Cars on a district's streets are that month's commits touching it.</dd></div>
+      <div><dt>Cranes</dt><dd>Files created this month. The biggest new buildings get one.</dd></div>
+      <div><dt>Rubble</dt><dd>Files deleted in the last two months.</dd></div>
+      <div><dt>Fires</dt><dd>Buildings touched by a fix commit this month glow and flicker.</dd></div>
+      <div><dt>Lit windows</dt><dd>Recent activity. A building touched this month is fully lit; the lights go out over the following months.</dd></div>
+      <div><dt>Derelict</dt><dd>Untouched for two years: greyed out, with dark windows.</dd></div>
+      <div><dt>Factories and smoke</dt><dd>Test files. Chimneys smoke when tests changed this month.</dd></div>
+      <div><dt>Waterworks</dt><dd>SQL files and migrations are storage tanks, usually down by the water.</dd></div>
+      <div><dt>Airport</dt><dd>Each release that month (a tag, or a merge matching your release pattern) is a flight taking off.</dd></div>
+      <div><dt>Helicopters</dt><dd>Commits mentioning a hotfix, circling the district with the most fixes.</dd></div>
+      <div id="port-row"><dt>Port</dt><dd id="port-text">Optional business metrics: ships, containers and visitors per month, from a metrics file.</dd></div>
+      <div><dt>City news</dt><dd>Fixed rules, no AI: new districts, demolitions, the biggest commits by name, population milestones, rush hours, fire storms and metric records.</dd></div>
+    </dl>
+  </section>
+
+  <section class="section">
+    <h2>City chronicle</h2>
+    <p class="lede">Every headline the rules found. Click one to jump there.</p>
+    <ol class="chronicle" id="chronicle"></ol>
+  </section>
+
+  <section class="section">
+    <h2>How it is made</h2>
+    <p><code>git_city.py</code> walks <code>git log --numstat --summary -M</code> once, following renames and deletions, so every file has a month-by-month line count and a list of the months it was touched and fixed. It zones each path, lays the folder tree out as a squarified treemap with street gaps, and counts imports between workspace packages for the metro.</p>
+    <p class="note">Plots are sized from the largest each file ever grew, so they stay put over time. Height grows with the square root of lines, so the biggest files read as towers without dwarfing the rest. Metro lines use the imports at the latest commit.</p>
+  </section>
+  <footer><p id="generated"></p><p>Made with <a href="https://github.com/jackherizsmith/git-city">git-city</a>.</p></footer>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+const C = __CITY__;
+const MET = C.metrics;
+const NM = C.months.length, NF = C.files.length, ND = C.districts.length;
+const MON = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const monthLabel = m => MON[+C.months[m].slice(5) - 1] + ' ' + C.months[m].slice(0, 4);
+const fmt = v => Math.round(v).toLocaleString('en-GB');
+const ZONE = Object.fromEntries(C.zones.map((z, i) => [z, i]));
+const ZONE_INFO = {
+  residential: { label: 'Housing', what: 'React components (<code>.tsx</code>, <code>components/</code>): where the UI lives.', colours: ['#a65a40', '#b86f4f', '#cdb79a', '#d8ccb3', '#8d8f95', '#9c7b62'], foot: 0.78, mul: 0.62, min: 1.4, max: 14, windows: 1 },
+  shop: { label: 'High street', what: 'Pages and routes: the storefronts people walk into.', colours: ['#e3d6bf', '#c9b088', '#d6a675', '#b9c7b4', '#e6c9a8'], foot: 0.9, mul: 0.55, min: 1.3, max: 7, windows: 1 },
+  office: { label: 'Office towers', what: 'API routes, servers, services and jobs: the business district.', colours: ['#6f8497', '#8a9ba9', '#5c6c7d', '#a4aeb6', '#7d8c8f'], foot: 0.62, mul: 1.35, min: 2.5, max: 62, windows: 2, square: true },
+  civic: { label: 'Civic buildings', what: 'Other source files, hooks and helpers: the civic buildings that keep things running.', colours: ['#c9baa1', '#b8a88d', '#d6ccba', '#a99d8a'], foot: 0.74, mul: 0.85, min: 1.5, max: 24, windows: 1 },
+  factory: { label: 'Industry', what: 'Tests, fixtures and playgrounds: factories with chimneys that smoke when tests change.', colours: ['#8b6f5b', '#707678', '#9a8471', '#7f6a5d'], foot: 0.92, mul: 0.3, min: 1.6, max: 4.5, windows: 0 },
+  warehouse: { label: 'Warehouses', what: 'JSON, HTML, CSV and other data files: low warehouses.', colours: ['#78818b', '#8f8a80', '#6c747c'], foot: 0.95, mul: 0.3, min: 1.8, max: 5.5, windows: 0 },
+  waterworks: { label: 'Waterworks', what: 'SQL files and migrations: storage tanks.', colours: ['#c5c8ca', '#aab4b9', '#d2d0c8'], foot: 0.7, mul: 0.35, min: 0.8, max: 4, windows: 0, tank: true },
+  infra: { label: 'Utilities', what: 'CI, Docker, Terraform and YAML: depots, substations and sheds.', colours: ['#9aa1a7', '#b1b5b9', '#8b9298'], foot: 0.82, mul: 0.55, min: 1, max: 10, windows: 1 },
+  park: { label: 'Parks', what: 'Markdown and docs: green space with trees.', colours: ['#5f8b4c'], park: true },
+  campus: { label: 'University', what: 'AI agent config (<code>.claude</code>, <code>.cursor</code>, prompts): a red-brick campus.', colours: ['#9c4a3a', '#b0583f', '#8e4434'], foot: 0.8, mul: 0.7, min: 2, max: 10, windows: 1 },
+  monument: { label: 'Monuments', what: 'Images, icons and fonts: small stone landmarks.', colours: ['#d8c27a', '#cbb48c'], foot: 0.35, mul: 0.9, min: 1.5, max: 9, windows: 0 },
+};
+const ZI = C.zones.map(z => ZONE_INFO[z]);
+
+const L = new Float32Array(NF * NM);
+const TOUCH = new Uint8Array(NF * NM);
+const LAST = new Int16Array(NF * NM);
+const BORN = new Int16Array(NF), DIED = new Int16Array(NF);
+C.files.forEach((f, i) => {
+  const series = f[4];
+  let k = 0, v = 0;
+  for (let m = 0; m < NM; m++) {
+    while (k < series.length && series[k][0] <= m) { v = series[k][1]; k++; }
+    L[i * NM + m] = v;
+  }
+  f[5].forEach(m => { TOUCH[i * NM + m] |= 1; });
+  f[6].forEach(m => { TOUCH[i * NM + m] |= 2; });
+  let last = -99;
+  for (let m = 0; m < NM; m++) { if (TOUCH[i * NM + m]) { last = m; } LAST[i * NM + m] = last; }
+  BORN[i] = series.length ? series[0][0] : 0;
+  DIED[i] = -1;
+  for (let m = NM - 1; m > 0; m--) { if (L[i * NM + m] === 0 && L[i * NM + m - 1] > 0) { DIED[i] = m; break; } }
+});
+const DLOC = Array.from({ length: ND }, () => new Float64Array(NM));
+const TOTAL = new Float64Array(NM), ALIVE = new Int32Array(NM), FACT = new Int32Array(NM), TANKS = new Int32Array(NM);
+C.files.forEach((f, i) => { for (let m = 0; m < NM; m++) { const v = L[i * NM + m]; if (v > 0) { DLOC[f[1]][m] += v; TOTAL[m] += v; ALIVE[m]++; if (f[2] === ZONE.factory) { FACT[m]++; } if (f[2] === ZONE.waterworks) { TANKS[m]++; } } } });
+const DISTRICT_ALIVE = DLOC.map(series => Array.from(series, v => v > 0));
+const DIST = C.districts.map(([pkg, nick, r]) => ({ pkg, nick, x: r[0], z: r[1], w: r[2], d: r[3], cx: r[0] + r[2] / 2, cz: r[1] + r[3] / 2 }));
+const M = i => ({ c: C.monthly.commits[i], fx: C.monthly.fixes[i], rl: C.monthly.releases[i], hf: C.monthly.hotfixes[i], pj: MET ? MET.ships[i] : 0, oi: MET ? MET.containers[i] : 0, rs: MET ? MET.visitors[i] : 0 });
+const cleanSubject = s => s.replace(/\s*\(#\d+\)?\s*$/, '').replace(/^(feat|fix|chore|refactor|perf)(\([^)]*\))?!?:\s*/i, '').trim();
+
+function rng(seed) { return () => { seed |= 0; seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+
+function cityNews() {
+  const out = [];
+  const add = (m, d, w, text) => out.push({ m, d, w, text });
+  DIST.forEach((dist, di) => {
+    const peak = Math.max(...DLOC[di]);
+    if (peak < 1500) { return; }
+    const born = DLOC[di].findIndex(v => v > 0);
+    add(born, di, 4, `${dist.nick} breaks ground (${dist.pkg})`);
+    if (DLOC[di][NM - 1] === 0) {
+      const peakAt = DLOC[di].indexOf(peak);
+      const gone = DLOC[di].findIndex((v, m) => m > peakAt && v === 0);
+      add(gone, di, 6, `${dist.nick} demolished: ${fmt(peak)} lines cleared`);
+    }
+  });
+  const seen = new Set();
+  C.big.forEach(([k, ad, dl, subject, di]) => {
+    const m = C.months.indexOf(k);
+    if (ad + dl < 9000 || seen.has(m) || m < 0) { return; }
+    seen.add(m);
+    const where = di >= 0 ? `${DIST[di].nick}: ` : '';
+    add(m, di, 5, ad >= dl ? `${where}“${cleanSubject(subject)}” adds ${fmt(ad)} lines` : `${where}“${cleanSubject(subject)}” clears ${fmt(dl)} lines`);
+  });
+  [100000, 200000, 300000].forEach(th => {
+    const m = Array.from(TOTAL).findIndex((v, j) => v >= th && Array.from(TOTAL).slice(j, j + 7).every(x => x >= th));
+    if (m >= 0) { add(m, -1, 5, `Population passes ${th / 1000}k lines for good`); }
+  });
+  const series = C.monthly;
+  const firstRelease = series.releases.findIndex(v => v > 0);
+  if (firstRelease >= 0) {
+    add(firstRelease, -1, 6, `The airport opens: ${series.releases[firstRelease]} release flights`);
+    const releaseRecord = series.releases.reduce((b, v, i) => v > series.releases[b] ? i : b, 0);
+    add(releaseRecord, -1, 4, `Busiest month at the airport: ${series.releases[releaseRecord]} release flights`);
+  }
+  let fixRecord = 0;
+  series.commits.forEach((count, i) => {
+    const trailing = series.commits.slice(Math.max(0, i - 12), i).filter(v => v > 0);
+    const mean = trailing.length >= 6 ? trailing.reduce((a, v) => a + v, 0) / trailing.length : Infinity;
+    if (count >= 150 && count > 1.9 * mean) { add(i, -1, 4, `Rush hour: ${count} commits, ${(count / mean).toFixed(1)}× the usual traffic`); }
+    const fixes = series.fixes[i];
+    if (fixes >= 60 && fixes > fixRecord) { fixRecord = fixes; add(i, -1, 4, `Fire brigade stretched: ${fixes} fix commits`); }
+  });
+  if (MET) {
+    const firstShips = MET.ships.findIndex(v => v > 0);
+    if (firstShips >= 0) { add(firstShips, -1, 5, `The port opens: ${MET.ships[firstShips]} ${MET.labels.ships.toLowerCase()}`); }
+    const shipRecord = MET.ships.reduce((b, v, i) => v > MET.ships[b] ? i : b, 0);
+    if (MET.ships[shipRecord] > 0) { add(shipRecord, -1, 4, `Record month in port: ${fmt(MET.ships[shipRecord])} ${MET.labels.ships.toLowerCase()}`); }
+    const visitorRecord = MET.visitors.reduce((b, v, i) => v > MET.visitors[b] ? i : b, 0);
+    if (MET.visitors[visitorRecord] > 0) { add(visitorRecord, -1, 4, `Record ${fmt(MET.visitors[visitorRecord])} ${MET.labels.visitors.toLowerCase()}`); }
+  }
+  return out.filter(n => n.m >= 0).sort((a, b) => a.m - b.m || b.w - a.w);
+}
+const NEWS = cityNews();
+
+const canvas = document.getElementById('city');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(40, 2, 1, 4000);
+const hemi = new THREE.HemisphereLight(0xffffff, 0x444444, 0.8);
+const sun = new THREE.DirectionalLight(0xffffff, 0.9);
+scene.add(hemi, sun);
+const [CW, CD] = C.size;
+const SOUTH = CD / 2, EAST = CW / 2;
+
+const U = {
+  uSun: { value: new THREE.Vector3(0.5, 0.8, 0.3).normalize() }, uSunCol: { value: new THREE.Color() },
+  uAmbSky: { value: new THREE.Color() }, uAmbGround: { value: new THREE.Color() },
+  uNight: { value: 0.4 }, uTime: { value: 0 }, uFog: { value: new THREE.Color() },
+  uFogNear: { value: 400 }, uFogFar: { value: 1400 }, uCam: { value: new THREE.Vector3() },
+};
+const buildingMaterial = new THREE.ShaderMaterial({
+  uniforms: U,
+  vertexShader: `
+    attribute vec3 iColor; attribute vec4 iState;
+    varying vec3 vN; varying vec3 vW; varying vec3 vC; varying vec4 vS; varying vec2 vSeed; varying float vTop;
+    void main() {
+      vec4 wp = modelMatrix * instanceMatrix * vec4(position, 1.0);
+      vW = wp.xyz; vN = normalize(mat3(instanceMatrix) * normal); vC = iColor; vS = iState;
+      vSeed = vec2(instanceMatrix[3].x, instanceMatrix[3].z);
+      vTop = instanceMatrix[1].y + instanceMatrix[3].y;
+      gl_Position = projectionMatrix * viewMatrix * wp;
+    }`,
+  fragmentShader: `
+    uniform vec3 uSun; uniform vec3 uSunCol; uniform vec3 uAmbSky; uniform vec3 uAmbGround; uniform float uNight; uniform float uTime;
+    uniform vec3 uFog; uniform float uFogNear; uniform float uFogFar; uniform vec3 uCam;
+    varying vec3 vN; varying vec3 vW; varying vec3 vC; varying vec4 vS; varying vec2 vSeed; varying float vTop;
+    float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+    void main() {
+      vec3 n = normalize(vN);
+      float derelict = vS.y;
+      vec3 base = mix(vC, vec3(dot(vC, vec3(0.3, 0.59, 0.11))) * 0.72, derelict * 0.85);
+      float isRoof = step(0.6, n.y);
+      vec3 col = base * mix(1.0, 0.8, isRoof);
+      float win = 0.0, lit = 0.0, warmPick = 0.0;
+      if (isRoof < 0.5 && vS.w > 0.5) {
+        bool office = vS.w > 1.5;
+        float u = abs(n.x) > 0.5 ? vW.z : vW.x;
+        float fl = vW.y / 1.15; float fi = floor(fl); float ff = fract(fl);
+        float cu = u / (office ? 0.85 : 1.3); float ci = floor(cu); float cf = fract(cu);
+        float wy = office ? 0.14 : 0.3; float wx = office ? 0.07 : 0.26;
+        win = step(wy, ff) * step(ff, 1.0 - wy * 0.7) * step(wx, cf) * step(cf, 1.0 - wx) * step(0.9, vW.y) * step(vW.y, vTop - 0.35);
+        float h = hash(vec2(fi, ci) + vSeed * 0.37);
+        lit = win * step(h, vS.x);
+        warmPick = hash(vec2(ci, fi) * 1.7 + vSeed);
+      }
+      vec3 glass = mix(vec3(0.14, 0.17, 0.22), vec3(0.42, 0.52, 0.62), (1.0 - uNight) * 0.45);
+      col = mix(col, glass, win * 0.85);
+      float diff = max(dot(n, uSun), 0.0);
+      vec3 amb = mix(uAmbGround, uAmbSky, n.y * 0.5 + 0.5);
+      float ao = mix(0.5, 1.0, smoothstep(0.0, 3.0, vW.y));
+      vec3 colour = col * (amb + uSunCol * diff) * ao;
+      vec3 warm = warmPick > 0.85 ? vec3(0.8, 0.9, 1.0) : vec3(1.0, 0.76, 0.42);
+      colour += lit * warm * (0.06 + 1.1 * uNight * uNight) * (1.0 - derelict);
+      if (vS.z > 0.5) {
+        float flicker = 0.55 + 0.45 * sin(uTime * 11.0 + vW.y * 1.7 + vSeed.x * 3.0) * sin(uTime * 7.0 + vSeed.y);
+        float band = smoothstep(vTop * 0.35, vTop, vW.y);
+        colour = mix(colour, vec3(1.0, 0.38, 0.08) * (0.8 + flicker), (0.08 + 0.55 * band * band) * (0.5 + 0.5 * flicker));
+        colour += win * vec3(1.0, 0.45, 0.1) * 0.6 * flicker;
+      }
+      float f = smoothstep(uFogNear, uFogFar, length(vW - uCam));
+      gl_FragColor = vec4(mix(colour, uFog, f), 1.0);
+    }`,
+});
+
+function instanced(geometry, material, count, withState) {
+  const g = geometry.clone();
+  if (withState) {
+    g.setAttribute('iColor', new THREE.InstancedBufferAttribute(new Float32Array(count * 3), 3));
+    g.setAttribute('iState', new THREE.InstancedBufferAttribute(new Float32Array(count * 4), 4));
+  }
+  const mesh = new THREE.InstancedMesh(g, material, count);
+  mesh.frustumCulled = false;
+  mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  scene.add(mesh);
+  return mesh;
+}
+const boxGeo = new THREE.BoxGeometry(1, 1, 1); boxGeo.translate(0, 0.5, 0);
+const cylGeo = new THREE.CylinderGeometry(0.5, 0.5, 1, 18); cylGeo.translate(0, 0.5, 0);
+const lambert = (colour, extra = {}) => new THREE.MeshLambertMaterial({ color: colour, ...extra });
+const ZERO = new THREE.Matrix4().makeScale(0, 0, 0);
+const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), v3 = new THREE.Vector3(), s3 = new THREE.Vector3(), yAxis = new THREE.Vector3(0, 1, 0);
+function place(mesh, i, x, y, z, sx, sy, sz, rotY = 0) {
+  q.setFromAxisAngle(yAxis, rotY); v3.set(x, y, z); s3.set(sx, sy, sz);
+  m4.compose(v3, q, s3); mesh.setMatrixAt(i, m4);
+}
+
+const ground = new THREE.Mesh(new THREE.PlaneGeometry(CW + 900, CD + 900), lambert(0x5b7447));
+ground.rotation.x = -Math.PI / 2; ground.position.y = -0.05; scene.add(ground);
+const water = new THREE.Mesh(new THREE.PlaneGeometry(CW + 900, 420), lambert(0x1f4a66, { transparent: true, opacity: 0.94 }));
+water.rotation.x = -Math.PI / 2; water.position.set(0, 0.02, SOUTH + 26 + 210); scene.add(water);
+const quay = new THREE.Mesh(new THREE.BoxGeometry(CW + 6, 0.5, 22), lambert(0x8e8a82));
+quay.position.set(0, 0.2, SOUTH + 14); scene.add(quay);
+
+const blocks = C.blocks.filter(b => b[4] > 0);
+const blockDistrict = blocks.map(b => DIST.findIndex(d => b[0] >= d.x - 0.5 && b[1] >= d.z - 0.5 && b[0] + b[2] <= d.x + d.w + 0.5 && b[1] + b[3] <= d.z + d.d + 0.5));
+const DIST_BORN = DLOC.map(series => { const m = series.findIndex(v => v > 0); return m < 0 ? NM : m; });
+const PORT_OPENS = MET && MET.ships.some(v => v > 0) ? MET.ships.findIndex(v => v > 0) : NM;
+const districtPlates = instanced(boxGeo, lambert(0x34373d), DIST.length);
+const blockMesh = instanced(boxGeo, lambert(0xffffff), blocks.length);
+const PAVE = [0x7d7b75, 0x8f8c85, 0x9d9a92, 0xa8a59c, 0xb1aea5].map(c => new THREE.Color(c));
+const GRASS = new THREE.Color(0x6b8a4e);
+
+const dashes = [];
+DIST.forEach(d => {
+  const edges = [[d.x - 4.5, d.z - 4.5, d.x + d.w + 4.5, d.z - 4.5], [d.x - 4.5, d.z + d.d + 4.5, d.x + d.w + 4.5, d.z + d.d + 4.5], [d.x - 4.5, d.z - 4.5, d.x - 4.5, d.z + d.d + 4.5], [d.x + d.w + 4.5, d.z - 4.5, d.x + d.w + 4.5, d.z + d.d + 4.5]];
+  edges.forEach(([x1, z1, x2, z2]) => {
+    if (Math.abs(x1) > EAST + 1 || Math.abs(x2) > EAST + 1 || Math.abs(z1) > SOUTH + 1 || Math.abs(z2) > SOUTH + 1) { return; }
+    const len = Math.hypot(x2 - x1, z2 - z1), n = Math.floor(len / 4);
+    for (let k = 0; k < n; k++) { const t = (k + 0.5) / n; dashes.push([x1 + (x2 - x1) * t, z1 + (z2 - z1) * t, x1 === x2, DIST.indexOf(d)]); }
+  });
+});
+const dashMesh = instanced(boxGeo, lambert(0xe9e4d2), dashes.length);
+
+const FILES = C.files.map((f, i) => {
+  const [x, z, w, d] = f[3];
+  const info = ZI[f[2]];
+  const r = rng(i * 7 + 3);
+  return { i, path: f[0], d: f[1], z: f[2], info, cx: x + w / 2, cz: z + d / 2, w, dd: d, colour: new THREE.Color(info.colours[Math.floor(r() * info.colours.length)]).multiplyScalar(0.9 + r() * 0.2), rot: 0 };
+});
+const BLOCK_ALIVE = new Uint8Array(blocks.length * NM);
+FILES.forEach(f => {
+  const inside = [];
+  blocks.forEach((b, bi) => { if (f.cx >= b[0] && f.cx <= b[0] + b[2] && f.cz >= b[1] && f.cz <= b[1] + b[3]) { inside.push(bi); } });
+  for (let m = 0; m < NM; m++) { if (L[f.i * NM + m] > 0) { inside.forEach(bi => { BLOCK_ALIVE[bi * NM + m] = 1; }); } }
+});
+const boxFiles = FILES.filter(f => !f.info.tank && !f.info.park);
+const tankFiles = FILES.filter(f => f.info.tank);
+const parkFiles = FILES.filter(f => f.info.park);
+const factoryFiles = FILES.filter(f => f.z === ZONE.factory);
+const buildings = instanced(boxGeo, buildingMaterial, boxFiles.length, true);
+const tanks = instanced(cylGeo, buildingMaterial, tankFiles.length, true);
+const chimneys = instanced(cylGeo, lambert(0x6b5a50), factoryFiles.length);
+const parkPads = instanced(boxGeo, lambert(0x5f8b4c), parkFiles.length);
+[[buildings, boxFiles], [tanks, tankFiles]].forEach(([mesh, list]) => {
+  const c = mesh.geometry.getAttribute('iColor');
+  list.forEach((f, k) => { c.setXYZ(k, f.colour.r, f.colour.g, f.colour.b); });
+  c.needsUpdate = true;
+});
+
+const treeGeo = new THREE.IcosahedronGeometry(1, 0);
+const treeSpots = [];
+blocks.forEach((b, bi) => {
+  if (b[4] !== 1) { return; }
+  const r = rng(bi + 11);
+  for (let x = b[0] + 2; x < b[0] + b[2] - 1; x += 5.5) { treeSpots.push([x, b[1] + 0.5, bi, 0.6 + r() * 0.4]); treeSpots.push([x, b[1] + b[3] - 0.5, bi, 0.6 + r() * 0.4]); }
+});
+parkFiles.forEach(f => { const r = rng(f.i); const n = Math.max(2, Math.min(9, Math.round(Math.sqrt(f.w * f.dd) / 1.4))); for (let k = 0; k < n; k++) { treeSpots.push([f.cx + (r() - 0.5) * f.w * 0.8, f.cz + (r() - 0.5) * f.dd * 0.8, f.d, 0.9 + r() * 0.7, f.i]); } });
+const trees = instanced(treeGeo, lambert(0xffffff, { flatShading: true }), treeSpots.length);
+treeSpots.forEach((t, k) => { const r = rng(k); trees.setColorAt(k, new THREE.Color().setHSL(0.27 + r() * 0.08, 0.38 + r() * 0.15, 0.24 + r() * 0.1)); });
+
+const CRANES = 90;
+const craneMast = instanced(boxGeo, lambert(0xe2b23a), CRANES);
+const craneJib = instanced(boxGeo, lambert(0xe2b23a), CRANES);
+const rubble = instanced(boxGeo, lambert(0x6e5d4c, { flatShading: true }), 400);
+
+const LINE_PALETTE = [0xd64545, 0x3d7bd9, 0x3aa66b, 0xe0a526, 0x9b59b6, 0x1abc9c, 0xe67e22, 0x7f8c8d];
+const HUBS = [...new Set(C.rails.map(r => r[0]))];
+const lines = [];
+const hubOffsets = {};
+C.rails.forEach(([from, to, n]) => {
+  const a = DIST[from], b = DIST[to];
+  const k = (hubOffsets[from] = (hubOffsets[from] || 0) + 1);
+  const off = (k % 2 ? 1 : -1) * Math.ceil(k / 2) * 1.6;
+  const pts = [[a.cx + off, a.cz + off], [b.cx + off, a.cz + off], [b.cx + off, b.cz]];
+  const segs = []; let len = 0;
+  for (let s = 0; s < pts.length - 1; s++) { const l = Math.hypot(pts[s + 1][0] - pts[s][0], pts[s + 1][1] - pts[s][1]); if (l > 0.01) { segs.push({ a: pts[s], b: pts[s + 1], l, start: len }); len += l; } }
+  lines.push({ from, to, n, segs, len, colour: LINE_PALETTE[HUBS.indexOf(from) % LINE_PALETTE.length], trains: Math.max(1, Math.min(6, Math.round(n / 45))) });
+});
+const railBeams = [], pillars = [];
+lines.forEach((line, li) => line.segs.forEach(s => {
+  railBeams.push({ li, x: (s.a[0] + s.b[0]) / 2, z: (s.a[1] + s.b[1]) / 2, l: s.l + 1.2, rot: Math.atan2(s.b[0] - s.a[0], s.b[1] - s.a[1]) });
+  for (let t = 6; t < s.l; t += 14) { pillars.push({ li, x: s.a[0] + (s.b[0] - s.a[0]) * t / s.l, z: s.a[1] + (s.b[1] - s.a[1]) * t / s.l }); }
+}));
+const beamMesh = instanced(boxGeo, lambert(0xffffff), railBeams.length);
+railBeams.forEach((b, k) => beamMesh.setColorAt(k, new THREE.Color(lines[b.li].colour).multiplyScalar(0.8)));
+const pillarMesh = instanced(cylGeo, lambert(0x8a8a86), pillars.length);
+const TRAIN_CARS = lines.reduce((a, l) => a + l.trains * 3, 0);
+const trainMesh = instanced(boxGeo, lambert(0xffffff), TRAIN_CARS);
+{ let k = 0; lines.forEach(l => { for (let t = 0; t < l.trains * 3; t++) { trainMesh.setColorAt(k++, new THREE.Color(l.colour).lerp(new THREE.Color(0xffffff), 0.35)); } }); }
+const stations = instanced(boxGeo, lambert(0xd9d4c7), DIST.length);
+const RAIL_Y = 8;
+
+const roads = [];
+blocks.forEach((b, bi) => { if (b[4] === 1 || b[4] === 2) { const g = b[4] === 1 ? 1.5 : 0.8; roads.push({ x: b[0] - g, z: b[1] - g, w: b[2] + 2 * g, d: b[3] + 2 * g, di: blockDistrict[bi] }); } });
+const roadsByDistrict = DIST.map((_, di) => roads.filter(r => r.di === di));
+const MAX_CARS = 900;
+const carMesh = instanced(boxGeo, lambert(0xffffff), MAX_CARS);
+const CAR_COLOURS = [0xd8dde3, 0x2b2f36, 0xa6342b, 0x2f5e9e, 0xc9c2b3, 0x56606b, 0xe0b23c, 0x3d6b4a].map(c => new THREE.Color(c));
+const cars = Array.from({ length: MAX_CARS }, (_, k) => { const r = rng(k + 999); carMesh.setColorAt(k, CAR_COLOURS[Math.floor(r() * CAR_COLOURS.length)]); return { t: r(), speed: 0.012 + r() * 0.02, lane: r() < 0.5 ? 1 : -1, pick: r() }; });
+
+const MAX_SHIPS = 30, MAX_BOXES = 520;
+const hulls = instanced(boxGeo, lambert(0xffffff), MAX_SHIPS);
+const decks = instanced(boxGeo, lambert(0xf1efe8), MAX_SHIPS);
+const containers = instanced(boxGeo, lambert(0xffffff), MAX_BOXES);
+for (let k = 0; k < MAX_SHIPS; k++) { hulls.setColorAt(k, new THREE.Color([0x7a2a24, 0x24384f, 0x2d4a3a, 0x3b3b3f][k % 4])); }
+for (let k = 0; k < MAX_BOXES; k++) { containers.setColorAt(k, new THREE.Color([0xb5442f, 0x2f6aa8, 0x3f8a52, 0xd08a2a, 0x7b7f86, 0xb8b2a3][k % 6])); }
+const cranesPort = instanced(boxGeo, lambert(0x2f6aa8), 6);
+
+const RUNWAY_X = EAST + 46;
+const runway = new THREE.Mesh(new THREE.BoxGeometry(18, 0.12, CD + 40), lambert(0x2e3035)); runway.position.set(RUNWAY_X, 0.06, 0); scene.add(runway);
+const runwayMarks = instanced(boxGeo, lambert(0xf2efe6), 40);
+for (let k = 0; k < 40; k++) { place(runwayMarks, k, RUNWAY_X, 0.13, -CD / 2 - 10 + k * (CD + 20) / 40, 0.6, 0.02, 4); }
+runwayMarks.instanceMatrix.needsUpdate = true;
+const terminal = new THREE.Mesh(new THREE.BoxGeometry(14, 6, 60), lambert(0xc7ccd2)); terminal.position.set(RUNWAY_X + 26, 3, -CD / 4); scene.add(terminal);
+const tower = new THREE.Mesh(new THREE.CylinderGeometry(1.4, 1.8, 22, 10), lambert(0xd9dde2)); tower.position.set(RUNWAY_X + 24, 11, 10); scene.add(tower);
+const MAX_PLANES = 34;
+const fuselages = instanced(boxGeo, lambert(0xf3f4f6), MAX_PLANES);
+const wings = instanced(boxGeo, lambert(0xd5d9de), MAX_PLANES);
+const HELIS = 12;
+const heliBody = instanced(boxGeo, lambert(0xc0392b), HELIS);
+const heliRotor = instanced(boxGeo, lambert(0x222222), HELIS);
+
+const SMOKE_MAX = 900;
+const smokeGeo = new THREE.BufferGeometry();
+smokeGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(SMOKE_MAX * 3), 3));
+smokeGeo.setAttribute('alpha', new THREE.BufferAttribute(new Float32Array(SMOKE_MAX), 1));
+const smoke = new THREE.Points(smokeGeo, new THREE.ShaderMaterial({
+  uniforms: { uPixel: { value: renderer.getPixelRatio() }, uCol: { value: new THREE.Color(0xcfcac2) } },
+  vertexShader: 'attribute float alpha; varying float vA; uniform float uPixel; void main(){ vA = alpha; vec4 mv = modelViewMatrix * vec4(position,1.0); gl_PointSize = (1.0 - alpha * 0.5) * 900.0 * uPixel / -mv.z; gl_Position = projectionMatrix * mv; }',
+  fragmentShader: 'uniform vec3 uCol; varying float vA; void main(){ float d = length(gl_PointCoord - 0.5); if (vA <= 0.0) discard; gl_FragColor = vec4(uCol, smoothstep(0.5, 0.0, d) * vA * 0.55); }',
+  transparent: true, depthWrite: false,
+}));
+smoke.frustumCulled = false; scene.add(smoke);
+const starGeo = new THREE.BufferGeometry();
+{ const r = rng(5), p = new Float32Array(1500 * 3); for (let k = 0; k < 1500; k++) { const th = r() * Math.PI * 2, ph = r() * 1.2; p.set([Math.cos(th) * Math.sin(ph) * 1800, Math.cos(ph) * 1800, Math.sin(th) * Math.sin(ph) * 1800], k * 3); } starGeo.setAttribute('position', new THREE.BufferAttribute(p, 3)); }
+const stars = new THREE.Points(starGeo, new THREE.PointsMaterial({ color: 0xffffff, size: 2, sizeAttenuation: false, transparent: true, opacity: 0 }));
+scene.add(stars);
+
+const labelSprites = DIST.map((d, di) => {
+  const peak = Math.max(...DLOC[di]);
+  if (peak < 1200) { return null; }
+  const c = document.createElement('canvas'), ctx = c.getContext('2d');
+  ctx.font = '700 46px "Bricolage Grotesque", system-ui, sans-serif';
+  const w1 = ctx.measureText(d.nick).width; ctx.font = '500 26px "IBM Plex Mono", monospace'; const w2 = ctx.measureText(d.pkg).width;
+  c.width = Math.ceil(Math.max(w1, w2) + 40); c.height = 96;
+  ctx.font = '700 46px "Bricolage Grotesque", system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.lineWidth = 8; ctx.strokeStyle = 'rgba(10,14,26,0.75)'; ctx.fillStyle = '#ffffff';
+  ctx.strokeText(d.nick, c.width / 2, 46); ctx.fillText(d.nick, c.width / 2, 46);
+  ctx.font = '500 26px "IBM Plex Mono", monospace'; ctx.fillStyle = '#f0c46a'; ctx.strokeText(d.pkg, c.width / 2, 82); ctx.fillText(d.pkg, c.width / 2, 82);
+  const tex = new THREE.CanvasTexture(c); tex.minFilter = THREE.LinearFilter;
+  const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, depthTest: false, transparent: true }));
+  const h = 7 + Math.sqrt(peak) / 18; sp.scale.set(h * c.width / c.height, h, 1); sp.position.set(d.cx, 40 + Math.sqrt(peak) / 6, d.cz); sp.renderOrder = 20;
+  scene.add(sp); return sp;
+});
+
+const LIGHTS = {
+  day: { sky: ['#7fb2e5', '#d7e7f2'], fog: 0xc9dcea, sun: [0.45, 0.85, 0.3], sunCol: [1.0, 0.96, 0.9], sunI: 0.95, ambSky: [0.58, 0.64, 0.76], ambGround: [0.32, 0.3, 0.27], night: 0, ground: 0x5f7a49, water: 0x2d6a92 },
+  dusk: { sky: ['#2c3358', '#e79a6b'], fog: 0xb38a7d, sun: [-0.85, 0.28, 0.25], sunCol: [1.0, 0.62, 0.38], sunI: 0.85, ambSky: [0.36, 0.34, 0.5], ambGround: [0.2, 0.15, 0.14], night: 0.4, ground: 0x46583a, water: 0x23425e },
+  night: { sky: ['#03050d', '#141c38'], fog: 0x0c1226, sun: [-0.3, 0.7, 0.2], sunCol: [0.22, 0.27, 0.42], sunI: 0.5, ambSky: [0.11, 0.13, 0.22], ambGround: [0.04, 0.04, 0.06], night: 1, ground: 0x1c2619, water: 0x0d1d2e },
+};
+let light = 'dusk';
+function applyLight(name) {
+  light = name; const p = LIGHTS[name];
+  const c = document.createElement('canvas'); c.width = 2; c.height = 256; const g = c.getContext('2d'); const gr = g.createLinearGradient(0, 0, 0, 256);
+  gr.addColorStop(0, p.sky[0]); gr.addColorStop(1, p.sky[1]); g.fillStyle = gr; g.fillRect(0, 0, 2, 256);
+  scene.background = new THREE.CanvasTexture(c);
+  U.uSun.value.set(...p.sun).normalize(); U.uSunCol.value.setRGB(...p.sunCol); U.uAmbSky.value.setRGB(...p.ambSky); U.uAmbGround.value.setRGB(...p.ambGround);
+  U.uNight.value = p.night; U.uFog.value.set(p.fog);
+  sun.position.copy(U.uSun.value).multiplyScalar(100); sun.color.setRGB(...p.sunCol); sun.intensity = p.sunI;
+  hemi.color.setRGB(...p.ambSky).multiplyScalar(1.4); hemi.groundColor.setRGB(...p.ambGround).multiplyScalar(1.4); hemi.intensity = 0.9;
+  scene.fog = new THREE.Fog(p.fog, 500, 1500);
+  ground.material.color.set(p.ground); water.material.color.set(p.water);
+  stars.material.opacity = p.night > 0.8 ? 0.85 : 0;
+  carMesh.material.emissive.set(p.night > 0.8 ? 0x2a2418 : 0x000000);
+  document.querySelectorAll('[data-light]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.light === name)));
+}
+
+function heightOf(info, loc) { return Math.min(info.max * 1.3, Math.max(info.min, info.mul * 0.7 * Math.sqrt(Math.min(loc, 9000)))); }
+function footprint(f) {
+  const info = f.info;
+  if (info.square) { const s = Math.min(f.w, f.dd) * info.foot; return [s, s]; }
+  return [f.w * info.foot, f.dd * info.foot];
+}
+
+let cranesActive = [];
+function updateCity(tm) {
+  const m = Math.min(NM - 1, Math.floor(tm)), frac = Math.min(1, tm - m), m1 = Math.min(NM - 1, m + 1);
+  const states = buildings.geometry.getAttribute('iState'), tStates = tanks.geometry.getAttribute('iState');
+  const locAt = i => L[i * NM + m] + (L[i * NM + m1] - L[i * NM + m]) * frac;
+  const stateOf = (f) => {
+    const last = LAST[f.i * NM + m], since = m - last, t = TOUCH[f.i * NM + m];
+    const litness = last < 0 ? 0.05 : Math.max(0.06, 0.95 * Math.exp(-since / 5));
+    const derelict = since > 24 && last >= 0 ? 1 : 0;
+    return [litness, derelict, t & 2 ? 1 : 0, f.info.windows];
+  };
+  boxFiles.forEach((f, k) => {
+    const loc = locAt(f.i);
+    if (loc <= 0.5) { buildings.setMatrixAt(k, ZERO); return; }
+    const [fw, fd] = footprint(f), h = heightOf(f.info, loc);
+    place(buildings, k, f.cx, 0.12, f.cz, fw, h, fd);
+    states.setXYZW(k, ...stateOf(f));
+  });
+  tankFiles.forEach((f, k) => {
+    const loc = locAt(f.i);
+    if (loc <= 0.5) { tanks.setMatrixAt(k, ZERO); return; }
+    const r = Math.min(f.w, f.dd) * f.info.foot, h = heightOf(f.info, loc);
+    place(tanks, k, f.cx, 0.12, f.cz, r, h, r);
+    tStates.setXYZW(k, ...stateOf(f));
+  });
+  factoryFiles.forEach((f, k) => {
+    const loc = locAt(f.i);
+    if (loc <= 0.5) { chimneys.setMatrixAt(k, ZERO); return; }
+    const h = heightOf(f.info, loc), r = Math.min(f.w, f.dd) * 0.14;
+    place(chimneys, k, f.cx + f.w * 0.3, 0.1, f.cz + f.dd * 0.25, r, h + 3.2, r);
+  });
+  parkFiles.forEach((f, k) => { if (L[f.i * NM + m] > 0) { place(parkPads, k, f.cx, 0.13, f.cz, f.w * 0.96, 0.08, f.dd * 0.96); } else { parkPads.setMatrixAt(k, ZERO); } });
+  treeSpots.forEach((t, k) => {
+    const isAlive = t.length > 4 ? L[t[4] * NM + m] > 0 : BLOCK_ALIVE[t[2] * NM + m] === 1;
+    if (!isAlive) { trees.setMatrixAt(k, ZERO); return; }
+    place(trees, k, t[0], 0.9 + t[3], t[1], t[3] * 1.1, t[3] * 1.5, t[3] * 1.1);
+  });
+  blocks.forEach((b, i) => {
+    const di = blockDistrict[i];
+    if (di < 0 || m < DIST_BORN[di]) { blockMesh.setMatrixAt(i, ZERO); return; }
+    place(blockMesh, i, b[0] + b[2] / 2, 0.05 + b[4] * 0.03, b[1] + b[3] / 2, b[2], 0.12, b[3]);
+    blockMesh.setColorAt(i, BLOCK_ALIVE[i * NM + m] ? PAVE[Math.min(4, b[4])] : GRASS);
+  });
+  DIST.forEach((d, di) => { if (m >= DIST_BORN[di]) { place(districtPlates, di, d.cx, -0.02, d.cz, d.w + 9, 0.1, d.d + 9); } else { districtPlates.setMatrixAt(di, ZERO); } });
+  dashes.forEach(([x, z, vertical, di], i) => { if (m >= DIST_BORN[di]) { place(dashMesh, i, x, 0.06, z, vertical ? 0.22 : 1.8, 0.02, vertical ? 1.8 : 0.22); } else { dashMesh.setMatrixAt(i, ZERO); } });
+  for (let k = 0; k < 6; k++) { if (m >= PORT_OPENS) { place(cranesPort, k, -EAST + 40 + k * 14, 0, SOUTH + 18, 1.6, 18, 1.6); } else { cranesPort.setMatrixAt(k, ZERO); } }
+  [districtPlates, dashMesh, cranesPort].forEach(mesh => { mesh.instanceMatrix.needsUpdate = true; });
+  cranesActive = FILES.filter(f => BORN[f.i] === m && !f.info.park).sort((a, b) => L[b.i * NM + NM - 1] - L[a.i * NM + NM - 1]).slice(0, CRANES);
+  for (let k = 0; k < CRANES; k++) {
+    const f = cranesActive[k];
+    if (!f) { craneMast.setMatrixAt(k, ZERO); craneJib.setMatrixAt(k, ZERO); continue; }
+    const h = heightOf(f.info.tank ? ZI[ZONE.civic] : f.info, Math.max(1, locAt(f.i))) + 6;
+    place(craneMast, k, f.cx - f.w * 0.42, 0, f.cz - f.dd * 0.42, 0.35, h, 0.35);
+    f.craneH = h;
+  }
+  const rubbleFiles = FILES.filter(f => DIED[f.i] >= 0 && DIED[f.i] <= m && m - DIED[f.i] < 2).slice(0, 400);
+  for (let k = 0; k < 400; k++) {
+    const f = rubbleFiles[k];
+    if (!f) { rubble.setMatrixAt(k, ZERO); continue; }
+    place(rubble, k, f.cx, 0.1, f.cz, f.w * 0.7, 0.6 + (f.i % 3) * 0.3, f.dd * 0.7, f.i);
+  }
+  railBeams.forEach((b, k) => { const l = lines[b.li]; if (DISTRICT_ALIVE[l.from][m] && DISTRICT_ALIVE[l.to][m]) { place(beamMesh, k, b.x, RAIL_Y, b.z, 1.4, 0.7, b.l, b.rot); } else { beamMesh.setMatrixAt(k, ZERO); } });
+  pillars.forEach((p, k) => { const l = lines[p.li]; if (DISTRICT_ALIVE[l.from][m] && DISTRICT_ALIVE[l.to][m]) { place(pillarMesh, k, p.x, 0, p.z, 0.8, RAIL_Y, 0.8); } else { pillarMesh.setMatrixAt(k, ZERO); } });
+  DIST.forEach((d, di) => { const isHub = lines.some(l => l.from === di) && DISTRICT_ALIVE[di][m]; if (isHub) { place(stations, di, d.cx, RAIL_Y + 0.5, d.cz, 10, 1, 10); } else { stations.setMatrixAt(di, ZERO); } });
+  [buildings, tanks, chimneys, parkPads, trees, craneMast, rubble, beamMesh, pillarMesh, stations].forEach(mesh => { mesh.instanceMatrix.needsUpdate = true; });
+  states.needsUpdate = true; tStates.needsUpdate = true; blockMesh.instanceColor.needsUpdate = true; blockMesh.instanceMatrix.needsUpdate = true;
+}
+
+let current = 0, playing = false, lastMonth = -1, labelsOn = true;
+function activeCarsPlan(m) {
+  const plan = []; let total = 0;
+  C.district_commits.forEach((series, di) => { const n = Math.min(160, Math.round(series[m] * 1.4)); if (n > 0 && roadsByDistrict[di].length && DISTRICT_ALIVE[di][m]) { plan.push([di, n]); total += n; } });
+  const scale = total > MAX_CARS ? MAX_CARS / total : 1;
+  const out = []; plan.forEach(([di, n]) => { for (let k = 0; k < Math.round(n * scale); k++) { out.push(di); } });
+  return out;
+}
+let carPlan = [];
+function rectPoint(r, t, lane) {
+  const per = 2 * (r.w + r.d); let s = (t % 1) * per;
+  const o = 0.5 * lane;
+  if (s < r.w) { return [r.x + s, r.z + o, 0]; } s -= r.w;
+  if (s < r.d) { return [r.x + r.w - o, r.z + s, Math.PI / 2]; } s -= r.d;
+  if (s < r.w) { return [r.x + r.w - s, r.z + r.d - o, Math.PI]; } s -= r.w;
+  return [r.x + o, r.z + r.d - s, -Math.PI / 2];
+}
+
+function animate(dt, time) {
+  const m = Math.min(NM - 1, Math.floor(current));
+  for (let k = 0; k < MAX_CARS; k++) {
+    const car = cars[k], di = carPlan[k];
+    if (di === undefined) { carMesh.setMatrixAt(k, ZERO); continue; }
+    const rs = roadsByDistrict[di], r = rs[Math.floor(car.pick * rs.length)];
+    car.t += car.speed * dt * 60 * (40 / (2 * (r.w + r.d)));
+    const [x, z, rot] = rectPoint(r, car.t * car.lane, car.lane);
+    place(carMesh, k, x, 0.15, z, 0.9, 0.55, 1.9, rot);
+  }
+  carMesh.instanceMatrix.needsUpdate = true;
+  let ti = 0;
+  lines.forEach(l => {
+    const isOn = DISTRICT_ALIVE[l.from][m] && DISTRICT_ALIVE[l.to][m];
+    for (let tr = 0; tr < l.trains; tr++) {
+      const base = ((time * 14 + tr * (2 * l.len) / l.trains) % (2 * l.len));
+      for (let c = 0; c < 3; c++) {
+        if (!isOn) { trainMesh.setMatrixAt(ti++, ZERO); continue; }
+        let s = base - c * 2.4; if (s < 0) { s += 2 * l.len; }
+        const pos = s > l.len ? 2 * l.len - s : s;
+        const seg = l.segs.find(sg => pos >= sg.start && pos <= sg.start + sg.l) || l.segs[l.segs.length - 1];
+        const t = (pos - seg.start) / seg.l;
+        place(trainMesh, ti++, seg.a[0] + (seg.b[0] - seg.a[0]) * t, RAIL_Y + 0.4, seg.a[1] + (seg.b[1] - seg.a[1]) * t, 1.2, 1.3, 2.2, Math.atan2(seg.b[0] - seg.a[0], seg.b[1] - seg.a[1]));
+      }
+    }
+  });
+  trainMesh.instanceMatrix.needsUpdate = true;
+  cranesActive.forEach((f, k) => { place(craneJib, k, f.cx - f.w * 0.42, f.craneH, f.cz - f.dd * 0.42, 0.3, 0.3, 9, time * 0.4 + f.i); });
+  for (let k = cranesActive.length; k < CRANES; k++) { craneJib.setMatrixAt(k, ZERO); }
+  craneJib.instanceMatrix.needsUpdate = true;
+  const row = M(m);
+  for (let k = 0; k < MAX_SHIPS; k++) {
+    if (k >= Math.min(MAX_SHIPS, row.pj)) { hulls.setMatrixAt(k, ZERO); decks.setMatrixAt(k, ZERO); continue; }
+    const x = -EAST + 140 + k * 14, z = SOUTH + 34 + (k % 2) * 16, bob = Math.sin(time * 1.2 + k) * 0.15;
+    place(hulls, k, x, -0.6 + bob, z, 3.4, 2.2, 11); place(decks, k, x, 1.6 + bob, z + 3, 2.6, 2.2, 2.6);
+  }
+  hulls.instanceMatrix.needsUpdate = true; decks.instanceMatrix.needsUpdate = true;
+  let cumOptIns = 0; for (let j = 0; j <= m && MET; j++) { cumOptIns += MET.containers[j]; }
+  const nBoxes = Math.min(MAX_BOXES, Math.floor(cumOptIns / (MET ? MET.per_container : 1)));
+  for (let k = 0; k < MAX_BOXES; k++) {
+    if (k >= nBoxes) { containers.setMatrixAt(k, ZERO); continue; }
+    const layer = Math.floor(k / 104), idx = k % 104, col = idx % 26, rowI = Math.floor(idx / 26);
+    place(containers, k, -EAST + 10 + col * 3.4, 0.45 + layer * 1.3, SOUTH + 8 + rowI * 3, 3.0, 1.25, 2.6);
+  }
+  containers.instanceMatrix.needsUpdate = true;
+  const flights = Math.min(MAX_PLANES, row.rl);
+  for (let k = 0; k < MAX_PLANES; k++) {
+    if (k >= flights) { fuselages.setMatrixAt(k, ZERO); wings.setMatrixAt(k, ZERO); continue; }
+    const p = ((time / 14) + k / Math.max(1, flights)) % 1;
+    const roll = Math.min(1, p / 0.45), z = SOUTH + 10 - roll * roll * (CD * 0.7) - Math.max(0, p - 0.45) * 900;
+    const y = 0.8 + Math.max(0, p - 0.45) * 260;
+    place(fuselages, k, RUNWAY_X, y, z, 1.4, 1.4, 9); place(wings, k, RUNWAY_X, y + 0.2, z + 0.5, 12, 0.3, 2.2);
+  }
+  fuselages.instanceMatrix.needsUpdate = true; wings.instanceMatrix.needsUpdate = true;
+  const fixDistrict = C.district_fixes.reduce((b, s, di) => s[m] > C.district_fixes[b][m] ? di : b, 0), hd = DIST[fixDistrict];
+  for (let k = 0; k < HELIS; k++) {
+    if (k >= Math.min(HELIS, row.hf)) { heliBody.setMatrixAt(k, ZERO); heliRotor.setMatrixAt(k, ZERO); continue; }
+    const a = time * 0.5 + k * 2.1, rad = 18 + k * 5, x = hd.cx + Math.cos(a) * rad, z = hd.cz + Math.sin(a) * rad;
+    place(heliBody, k, x, 34 + k * 2, z, 1.4, 1.3, 3.2, -a); place(heliRotor, k, x, 35.4 + k * 2, z, 7, 0.1, 0.4, time * 20 + k);
+  }
+  heliBody.instanceMatrix.needsUpdate = true; heliRotor.instanceMatrix.needsUpdate = true;
+  const sp = smokeGeo.getAttribute('position'), sa = smokeGeo.getAttribute('alpha');
+  let si = 0;
+  factoryFiles.forEach(f => {
+    if (si >= SMOKE_MAX || !(TOUCH[f.i * NM + m] & 1) || L[f.i * NM + m] <= 0) { return; }
+    const top = heightOf(f.info, L[f.i * NM + m]) + 3.4;
+    for (let p = 0; p < 6 && si < SMOKE_MAX; p++) {
+      const life = ((time * 0.25 + p / 6 + (f.i % 7) * 0.13) % 1);
+      sp.setXYZ(si, f.cx + f.w * 0.3 + life * 4, top + life * 14, f.cz + f.dd * 0.25 + life * 1.5); sa.setX(si, 1 - life); si++;
+    }
+  });
+  for (; si < SMOKE_MAX; si++) { sa.setX(si, 0); }
+  sp.needsUpdate = true; sa.needsUpdate = true;
+}
+
+const hudMonth = document.getElementById('hud-month'), hudStats = document.getElementById('hud-stats');
+const tickerText = document.getElementById('ticker-text'), calloutsEl = document.getElementById('callouts');
+let callouts = [];
+function onMonthChange(m) {
+  const row = M(m);
+  hudMonth.textContent = monthLabel(m);
+  const stats = [
+    ['Population', `${fmt(TOTAL[m])} lines`], ['Buildings', fmt(ALIVE[m])], ['Districts', DISTRICT_ALIVE.filter(s => s[m]).length],
+    ['Factories', fmt(FACT[m])], ['Tanks', fmt(TANKS[m])], ['Traffic', `${row.c} commits`], ['Fires', `${row.fx} fixes`],
+    ['Flights', `${row.rl} releases`],
+    ...(MET ? [[MET.labels.ships, fmt(row.pj)], [MET.labels.visitors, fmt(row.rs)]] : []),
+  ];
+  hudStats.innerHTML = stats.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('');
+  const news = NEWS.filter(n => n.m === m);
+  tickerText.textContent = news.length ? news.map(n => n.text).join('  ·  ') : quietHeadline(m);
+  callouts = news.filter(n => n.d >= 0).slice(0, 3).map(n => {
+    const el = document.createElement('div'); el.className = 'hud callout';
+    el.innerHTML = `<small>${monthLabel(m).toUpperCase()} · ${DIST[n.d].pkg}</small>`;
+    el.append(document.createTextNode(n.text));
+    calloutsEl.append(el);
+    return { el, d: DIST[n.d] };
+  });
+  calloutsEl.replaceChildren(...callouts.map(c => c.el));
+  carPlan = activeCarsPlan(m);
+  document.querySelectorAll('#chronicle li').forEach(li => li.classList.toggle('future', +li.dataset.m > m));
+}
+function quietHeadline(m) {
+  const busiest = C.district_commits.reduce((b, s, di) => s[m] > C.district_commits[b][m] ? di : b, 0);
+  const n = C.district_commits[busiest][m];
+  if (n === 0) { return 'A quiet month. No new construction anywhere in the city.'; }
+  return `Busiest streets in ${DIST[busiest].nick}: ${n} commits. ${fmt(ALIVE[m])} buildings standing.`;
+}
+
+const DOWNTOWN = DIST[DLOC.reduce((b, s, di) => s[NM - 1] > DLOC[b][NM - 1] ? di : b, 0)];
+const PRESETS = {
+  overview: { target: [0, 0, 30], r: 520, theta: -0.45, phi: 0.92 },
+  downtown: { target: [DOWNTOWN.cx, 8, DOWNTOWN.cz], r: 170, theta: -0.7, phi: 1.05 },
+  port: { target: [-EAST + 160, 0, SOUTH + 20], r: 200, theta: 0.5, phi: 1.1 },
+};
+const cam = { target: new THREE.Vector3(...PRESETS.overview.target), r: 520, theta: -0.45, phi: 0.92 };
+const goal = { target: cam.target.clone(), r: 520, theta: -0.45, phi: 0.92 };
+function flyTo(name) { const p = PRESETS[name]; goal.target.set(...p.target); goal.r = p.r; goal.theta = p.theta; goal.phi = p.phi; }
+function flyToDistrict(di) { const d = DIST[di]; goal.target.set(d.cx, 6, d.cz); goal.r = Math.max(140, Math.max(d.w, d.d) * 1.6); }
+
+let drag = null, lastInteract = 0;
+canvas.addEventListener('pointerdown', e => { drag = { x: e.clientX, y: e.clientY, moved: 0 }; canvas.setPointerCapture(e.pointerId); canvas.style.cursor = 'grabbing'; lastInteract = performance.now(); });
+canvas.addEventListener('pointermove', e => {
+  if (drag) {
+    const dx = e.clientX - drag.x, dy = e.clientY - drag.y; drag.moved += Math.abs(dx) + Math.abs(dy);
+    if (e.shiftKey || e.buttons === 2) {
+      const fwd = new THREE.Vector3(Math.sin(cam.theta), 0, Math.cos(cam.theta)), right = new THREE.Vector3(fwd.z, 0, -fwd.x);
+      goal.target.addScaledVector(right, -dx * cam.r * 0.0015).addScaledVector(fwd, -dy * cam.r * 0.0015);
+    } else { goal.theta -= dx * 0.005; goal.phi = Math.min(1.45, Math.max(0.25, goal.phi - dy * 0.004)); }
+    drag.x = e.clientX; drag.y = e.clientY; lastInteract = performance.now();
+    return;
+  }
+  hover(e);
+});
+const endDrag = () => { drag = null; canvas.style.cursor = 'grab'; };
+canvas.addEventListener('pointerup', endDrag); canvas.addEventListener('pointercancel', endDrag);
+canvas.addEventListener('contextmenu', e => e.preventDefault());
+canvas.addEventListener('wheel', e => { e.preventDefault(); goal.r = Math.min(1100, Math.max(30, goal.r * (1 + e.deltaY * 0.0012))); lastInteract = performance.now(); }, { passive: false });
+
+const raycaster = new THREE.Raycaster(), pointer = new THREE.Vector2(), tip = document.getElementById('tip');
+let hoverPending = false;
+function hover(e) {
+  if (hoverPending) { return; }
+  hoverPending = true;
+  requestAnimationFrame(() => {
+    hoverPending = false;
+    const rect = canvas.getBoundingClientRect();
+    pointer.set(((e.clientX - rect.left) / rect.width) * 2 - 1, -((e.clientY - rect.top) / rect.height) * 2 + 1);
+    raycaster.setFromCamera(pointer, camera);
+    const hits = raycaster.intersectObjects([buildings, tanks], false);
+    if (!hits.length) { tip.hidden = true; return; }
+    const hit = hits[0], f = (hit.object === buildings ? boxFiles : tankFiles)[hit.instanceId];
+    const m = Math.min(NM - 1, Math.floor(current)), last = LAST[f.i * NM + m];
+    const fixes = C.files[f.i][6].filter(x => x <= m).length;
+    tip.innerHTML = `<span class="kind">${f.info.label} · ${DIST[f.d].nick}</span><span class="path"></span><span>${fmt(L[f.i * NM + m])} lines · built ${monthLabel(BORN[f.i])}</span><span>Last work ${last >= 0 ? monthLabel(last) : 'never'} · ${fixes} fix ${fixes === 1 ? 'commit' : 'commits'}</span>`;
+    tip.querySelector('.path').textContent = f.path;
+    tip.hidden = false;
+    const x = Math.min(e.clientX - rect.left + 14, rect.width - tip.offsetWidth - 8), y = Math.min(e.clientY - rect.top + 14, rect.height - tip.offsetHeight - 70);
+    tip.style.left = x + 'px'; tip.style.top = y + 'px';
+  });
+}
+canvas.addEventListener('pointerleave', () => { tip.hidden = true; });
+
+const slider = document.getElementById('month'), playBtn = document.getElementById('play');
+slider.max = NM - 1; slider.value = NM - 1; current = NM - 1;
+slider.addEventListener('input', () => { current = +slider.value; playing = false; playBtn.textContent = 'Play'; });
+playBtn.addEventListener('click', () => {
+  playing = !playing; playBtn.textContent = playing ? 'Pause' : 'Play';
+  if (playing && current >= NM - 1.01) { current = 0; }
+});
+document.querySelectorAll('[data-light]').forEach(b => b.addEventListener('click', () => applyLight(b.dataset.light)));
+document.querySelectorAll('[data-cam]').forEach(b => b.addEventListener('click', () => flyTo(b.dataset.cam)));
+const labelsBtn = document.getElementById('labels-btn');
+labelsBtn.addEventListener('click', () => { labelsOn = !labelsOn; labelsBtn.setAttribute('aria-pressed', String(labelsOn)); });
+
+function resize() {
+  const w = canvas.clientWidth, h = canvas.clientHeight;
+  renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix();
+  smoke.material.uniforms.uPixel.value = renderer.getPixelRatio();
+}
+window.addEventListener('resize', resize);
+
+let isVisible = true;
+new IntersectionObserver(entries => { isVisible = entries[0].isIntersecting; }).observe(canvas);
+const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+let prev = performance.now(), lastBuilt = -1;
+function frame(now) {
+  requestAnimationFrame(frame);
+  const dt = Math.min(0.05, (now - prev) / 1000); prev = now;
+  if (!isVisible || document.hidden) { return; }
+  const time = now / 1000;
+  if (playing) {
+    current = Math.min(NM - 1, current + dt * 0.9);
+    slider.value = current;
+    if (current >= NM - 1) { playing = false; playBtn.textContent = 'Play'; }
+  }
+  const m = Math.min(NM - 1, Math.floor(current));
+  if (m !== lastMonth) { lastMonth = m; onMonthChange(m); }
+  if (Math.abs(current - lastBuilt) > 0.004) { updateCity(current); lastBuilt = current; }
+  if (!reduceMotion && !drag && now - lastInteract > 4000) { goal.theta += dt * 0.03; }
+  const k = reduceMotion ? 1 : Math.min(1, dt * 4);
+  cam.target.lerp(goal.target, k); cam.r += (goal.r - cam.r) * k; cam.theta += (goal.theta - cam.theta) * k; cam.phi += (goal.phi - cam.phi) * k;
+  camera.position.set(cam.target.x + cam.r * Math.sin(cam.phi) * Math.sin(cam.theta), cam.target.y + cam.r * Math.cos(cam.phi), cam.target.z + cam.r * Math.sin(cam.phi) * Math.cos(cam.theta));
+  camera.lookAt(cam.target);
+  U.uTime.value = time; U.uCam.value.copy(camera.position);
+  U.uFogNear.value = cam.r * 0.9; U.uFogFar.value = cam.r * 3.2;
+  scene.fog.near = cam.r * 0.9; scene.fog.far = cam.r * 3.2;
+  labelSprites.forEach((sp, di) => { if (sp) { sp.visible = labelsOn && DISTRICT_ALIVE[di][m]; } });
+  animate(dt, reduceMotion ? 0 : time);
+  const rect = canvas.getBoundingClientRect();
+  callouts.forEach((c, ci) => {
+    v3.set(c.d.cx, 30, c.d.cz).project(camera);
+    const isShown = v3.z < 1 && Math.abs(v3.x) < 1.1 && Math.abs(v3.y) < 1.1;
+    c.el.hidden = !isShown;
+    c.el.style.left = ((v3.x + 1) / 2 * rect.width) + 'px'; c.el.style.top = ((1 - v3.y) / 2 * rect.height - ci * 58) + 'px';
+  });
+  renderer.render(scene, camera);
+}
+
+document.getElementById('zones').innerHTML = C.zones.map(z => {
+  const info = ZONE_INFO[z], n = C.files.filter((f, i) => C.zones[f[2]] === z && L[i * NM + NM - 1] > 0).length;
+  return `<div class="zone"><i style="background:${info.colours[0]}"></i><b>${info.label} · ${fmt(n)}</b><span>${info.what}</span></div>`;
+}).join('');
+const chronicle = document.getElementById('chronicle');
+NEWS.forEach(n => {
+  const li = document.createElement('li'); li.dataset.m = n.m;
+  const t = document.createElement('time'); t.textContent = monthLabel(n.m);
+  const b = document.createElement('button'); b.type = 'button'; b.textContent = n.text;
+  b.addEventListener('click', () => { current = n.m + 0.99; slider.value = current; playing = false; playBtn.textContent = 'Play'; if (n.d >= 0) { flyToDistrict(n.d); } document.getElementById('stage').scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth' }); });
+  li.append(t, b); chronicle.append(li);
+});
+
+document.title = `${C.name} City`;
+document.getElementById('city-name').textContent = `${C.name} City`;
+document.getElementById('city-kicker').textContent = `${monthLabel(0)} to ${monthLabel(NM - 1)}, as a city`;
+document.getElementById('generated').textContent = `Built from ${C.name} at ${C.head} on ${C.generated}: ${fmt(NF)} files tracked across ${NM} months.`;
+document.getElementById('port-text').textContent = MET
+  ? `Ships are ${MET.labels.ships.toLowerCase()} each month. A container is stacked for every ${fmt(MET.per_container)} ${MET.labels.containers.toLowerCase()}. ${MET.labels.visitors} show in the HUD.`
+  : 'Empty here. Pass a metrics file to fill it with ships, containers and visitors from your own numbers.';
+applyLight('dusk');
+resize();
+requestAnimationFrame(frame);
+document.fonts.ready.then(() => { labelSprites.forEach(sp => { if (sp) { sp.material.map.needsUpdate = true; } }); });
+</script>
