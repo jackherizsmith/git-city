@@ -6,8 +6,8 @@ The city grows and shrinks month by month as the code does, from the first commi
 One Python script reads `git log` and writes a single self-contained HTML page. It needs no dependencies, makes no
 network calls and uses no AI, so you can rebuild it on a schedule for free.
 
-A demo built from [vite](https://github.com/vitejs/vite)'s history is in [`demo/index.html`](demo/index.html).
-Download it and open it in a browser.
+**[See the live demo](https://jackherizsmith.github.io/git-city/demo/)**, built from
+[vite](https://github.com/vitejs/vite)'s history. Its source is [`demo/index.html`](demo/index.html).
 
 ## Quick start
 
